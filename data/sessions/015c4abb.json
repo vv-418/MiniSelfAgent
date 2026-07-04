@@ -1,0 +1,36 @@
+{
+  "session_id": "015c4abb",
+  "user_id": "default",
+  "created_at": 1783171367.8459535,
+  "last_active": 1783171389.2446947,
+  "metadata": {},
+  "messages": [
+    {
+      "role": "user",
+      "content": "计算109 * 9等于多少"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_0",
+          "type": "function",
+          "function": {
+            "name": "calculator",
+            "arguments": "{\"expression\": \"109 * 9\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_0",
+      "content": "109 * 9 = 981"
+    },
+    {
+      "role": "assistant",
+      "content": "109 × 9 = **981** ✅"
+    }
+  ]
+}
