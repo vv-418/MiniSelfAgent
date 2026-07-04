@@ -16,6 +16,7 @@ from typing import Optional, Dict, Any, List
 import config
 from src.utils.logger import logger, tool_tracer
 from src.utils.context_manager import ContextManager
+from src.utils.prompt_loader import render_prompt, load_prompt
 from src.llm.client import LLMClient
 from src.llm.parser import LLMOutputParser, AgentResponse
 from src.tools.base import ToolRegistry
@@ -26,9 +27,10 @@ from src.session.manager import Session, SessionManager
 
 
 # ============================================================
-# System Prompt 模板
+# System Prompt — 从 prompts/system_prompt.md 加载
 # ============================================================
-SYSTEM_PROMPT_TEMPLATE = """你是一个智能助手 (MiniSelfAgent)，能够使用工具帮助用户完成任务。
+# 硬编码的默认值，仅在 prompts/system_prompt.md 缺失时使用
+_DEFAULT_SYSTEM_PROMPT = """你是一个智能助手 (MiniSelfAgent)，能够使用工具帮助用户完成任务。
 
 ## 你可以使用的工具:
 {tools_description}
@@ -89,16 +91,24 @@ class AgentRuntime:
         return self._session_todos[session_id]
 
     def _build_system_prompt(self, session: Session) -> str:
-        """构建系统提示词"""
+        """构建系统提示词 — 优先从 prompts/system_prompt.md 加载"""
         tools_desc = "\n".join([
             f"- **{t.name}**: {t.description}"
             for t in self.tool_registry._tools.values()
         ])
 
-        return SYSTEM_PROMPT_TEMPLATE.format(
-            tools_description=tools_desc,
-            current_time=time.strftime("%Y-%m-%d %H:%M:%S"),
-            session_id=session.session_id,
+        return render_prompt(
+            "system_prompt.md",
+            variables={
+                "tools_description": tools_desc,
+                "current_time": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "session_id": session.session_id,
+            },
+            fallback=_DEFAULT_SYSTEM_PROMPT.format(
+                tools_description=tools_desc,
+                current_time=time.strftime("%Y-%m-%d %H:%M:%S"),
+                session_id=session.session_id,
+            ),
         )
 
     def chat(self, session_id: str, user_input: str) -> Dict[str, Any]:

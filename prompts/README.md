@@ -1,206 +1,122 @@
 # prompts/ — Agent 提示词模板
 
-> ⚠️ **当前状态**：本目录已创建，但提示词尚未从代码中独立出来。  
-> 目前所有提示词硬编码在 `src/core/agent.py` 和 `src/tools/*.py` 中。  
-> 本目录用于存放未来提取后的独立提示词文件。
+> ✅ **已完成**：提示词已从代码中独立出来，由 `src/utils/prompt_loader.py` 统一加载。  
+> 修改提示词只需编辑 `.md` 文件，无需改动 Python 代码。
 
 ---
 
-## 🎯 为什么需要独立的 prompts 目录？
-
-### 问题：提示词硬编码在代码中
-
-```
-当前状态：
-┌─────────────────────────────────────────┐
-│  src/core/agent.py                      │
-│    SYSTEM_PROMPT = "你是一个助手..."      │  ← 提示词和代码混在一起
-│                                         │
-│  src/tools/todo.py                      │
-│    description = "管理待办事项..."        │  ← 工具描述也是硬编码
-│                                         │
-│  修改提示词 = 改代码 = 有风险            │
-└─────────────────────────────────────────┘
-
-目标状态：
-┌─────────────────────────────────────────┐
-│  prompts/                               │
-│    system_prompt.md      ← 主系统提示词  │
-│    tools/                            │
-│      calculator.md       ← 计算器提示词  │
-│      search.md           ← 搜索提示词    │
-│      todo.md             ← 待办提示词    │
-│                                         │
-│  src/core/agent.py                      │
-│    prompt = load("prompts/system.md")   │  ← 代码只负责加载
-│                                         │
-│  修改提示词 = 改 .md 文件 = 安全、快速   │
-└─────────────────────────────────────────┘
-```
-
-### 好处
-
-1. **非技术人员可编辑**：产品经理、运营可直接修改 `.md` 文件优化提示词
-2. **版本控制友好**：提示词变更单独提交，可追溯历史
-3. **A/B 测试**：可快速切换不同版本的提示词对比效果
-4. **多语言支持**：可为不同语言创建不同的提示词文件
-
----
-
-## 📂 目录结构（规划中）
+## 📂 目录结构
 
 ```
 prompts/
 ├── README.md                 # 本文件
-├── system_prompt.md          # Agent 主系统提示词
-├── compress_prompt.md        # Context 压缩提示词
-└── tools/                    # 各工具的提示词
-    ├── calculator.md         # 计算器工具描述
-    ├── search.md             # 搜索工具描述
-    └── todo.md               # 待办工具描述
+├── system_prompt.md          # Agent 主系统提示词（已实现 ✅）
+└── compress_prompt.md        # Context 压缩摘要模板（已实现 ✅）
 ```
 
 ---
 
-## 📝 提示词内容预览
+## 📝 已实现的提示词文件
 
-### `system_prompt.md`（规划中）
+### `system_prompt.md`
 
-```markdown
-# System Prompt — MiniSelfAgent
+Agent 的主系统提示词，包含角色定义、工具列表占位符、回答规范、时间与 Session ID 变量。
 
-你是 MiniSelfAgent，一个智能助手。你可以使用以下工具帮助用户：
+**模板变量**：
 
-## 可用工具
+| 变量 | 说明 | 注入时机 |
+|------|------|----------|
+| `{tools_description}` | 工具注册表自动注入的工具描述列表 | `agent.py` `_build_system_prompt()` |
+| `{current_time}` | 当前时间 | `agent.py` `_build_system_prompt()` |
+| `{session_id}` | 当前 Session ID | `agent.py` `_build_system_prompt()` |
 
-{{tools_description}}
+### `compress_prompt.md`
 
-## 行为规范
+Context 压缩时使用的摘要格式模板。当消息数超过阈值（15 条）时，将早期消息按此模板格式压缩为摘要，注入消息列表最前面。
 
-1. 优先使用工具获取准确信息
-2. 复杂问题可多次调用工具
-3. 回答简洁、准确
-4. 如遇错误，说明原因并建议替代方案
-```
+**模板变量**：
 
-### `tools/todo.md`（规划中）
-
-```markdown
-# TodoTool — 待办事项管理
-
-## 功能
-管理用户的待办事项列表
-
-## 支持的操作
-- **add**: 添加新任务
-- **list**: 查看所有任务
-- **done**: 标记任务完成
-- **delete**: 删除任务
-
-## 使用示例
-用户："帮我添加一个任务：明天开会"
-→ 调用 todo(action="add", content="明天开会")
-```
+| 变量 | 说明 |
+|------|------|
+| `{threshold}` | 压缩触发阈值（15） |
+| `{user_topics}` | 用户讨论的话题摘要 |
+| `{tool_uses}` | 工具使用记录 |
+| `{key_decisions}` | 关键信息与结论 |
+| `{topic_max_chars}` | 用户话题截取长度 |
+| `{keep_recent}` | 保留的最近消息数（6） |
 
 ---
 
-## 🔧 提取提示词的实现方案
+## 🔧 加载机制
 
-### 步骤 1：创建提示词文件
+### prompt_loader.py 提供两个核心函数
 
 ```python
-# prompts/system_prompt.md
-你是 MiniSelfAgent，一个智能助手...
+from src.utils.prompt_loader import load_prompt, render_prompt
 
-# prompts/tools/todo.md  
-管理用户的待办事项列表，支持 add/list/done/delete 操作...
+# 1. 直接加载（无变量替换）
+content = load_prompt("system_prompt.md")
+
+# 2. 加载 + 变量替换
+content = render_prompt(
+    "system_prompt.md",
+    variables={
+        "tools_description": "...",
+        "current_time": "2026-07-04 22:00:00",
+        "session_id": "abc-123",
+    },
+    fallback="默认提示词..."
+)
 ```
 
-### 步骤 2：修改代码加载提示词
+### agent.py 中的调用方式
 
 ```python
 # src/core/agent.py
-
-import os
-from pathlib import Path
+from src.utils.prompt_loader import render_prompt
 
 class AgentRuntime:
-    def _build_system_prompt(self):
-        # 从文件加载提示词
-        prompt_file = Path(__file__).parent.parent.parent / "prompts" / "system_prompt.md"
-        with open(prompt_file, "r", encoding="utf-8") as f:
-            template = f.read()
-        
-        # 替换变量
-        tools_desc = self._format_tools_for_prompt()
-        return template.replace("{{tools_description}}", tools_desc)
+    def _build_system_prompt(self, session):
+        tools_desc = "\n".join([
+            f"- **{t.name}**: {t.description}"
+            for t in self.tool_registry._tools.values()
+        ])
+        return render_prompt(
+            "system_prompt.md",
+            variables={
+                "tools_description": tools_desc,
+                "current_time": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "session_id": session.session_id,
+            },
+            fallback=_DEFAULT_SYSTEM_PROMPT.format(...)  # 保底内置默认值
+        )
 ```
 
-### 步骤 3：工具描述也从文件加载
+### 安全回退机制
 
-```python
-# src/tools/todo.py
-
-from pathlib import Path
-
-class TodoTool(BaseTool):
-    def __init__(self):
-        # 从文件加载描述
-        desc_file = Path(__file__).parent.parent.parent / "prompts" / "tools" / "todo.md"
-        with open(desc_file, "r", encoding="utf-8") as f:
-            self.description = f.read()
-```
+如果 `prompts/` 下的 `.md` 文件缺失或损坏，`load_prompt()` 返回 `fallback` 参数指定的默认值，`agent.py` 中硬编码的 `_DEFAULT_SYSTEM_PROMPT` 确保系统不会因文件缺失而崩溃。
 
 ---
 
-## 📊 提示词管理最佳实践
+## 📊 如何修改提示词
 
-### 1. 版本管理
+1. **修改系统提示词** → 编辑 `prompts/system_prompt.md`
+2. **修改压缩格式** → 编辑 `prompts/compress_prompt.md`
+3. **运行测试** → `python -m unittest discover` 验证无回归
 
-```bash
-# 每次修改提示词都提交
-git add prompts/
-git commit -m "优化系统提示词：增加角色定义"
-```
-
-### 2. A/B 测试
-
-```python
-# 根据环境变量切换提示词版本
-prompt_version = os.getenv("PROMPT_VERSION", "v1")
-prompt_file = f"prompts/system_prompt_{prompt_version}.md"
-```
-
-### 3. 多语言支持
-
-```
-prompts/
-├── system_prompt_zh.md    # 中文
-├── system_prompt_en.md    # 英文
-└── tools/
-    ├── todo_zh.md
-    └── todo_en.md
-```
+不需要改动任何 Python 代码。
 
 ---
 
-## ✅ 当前可操作
+## 🚀 未来扩展计划
 
-虽然提示词还未提取，但你可以：
+如需为每个工具单独创建提示词描述文件（如 `tools/todo.md`），可按以下方式扩展：
 
-1. **现在就规划**：参考上面的结构创建 `prompts/` 目录和文件
-2. **手动提取**：从 `agent.py` 和 `tools/*.py` 中复制提示词到独立文件
-3. **测试加载**：修改代码验证文件加载是否正常工作
-
----
-
-## 📚 相关文档
-
-- `src/core/agent.py` — 当前系统提示词所在位置
-- `src/tools/*.py` — 当前工具描述所在位置
-- `docs/architecture.md` — 架构文档（包含提示词流程）
+1. 在 `prompts/tools/` 下创建 `.md` 文件
+2. 修改 `BaseTool` 子类的 `__init__` 方法，从文件加载 `self.description`
+3. 在 `prompt_loader.py` 中添加对应的加载函数
 
 ---
 
-**状态**：⏳ 目录已创建，等待提示词提取实现  
-**下一步**：从 `agent.py` 提取 `SYSTEM_PROMPT` 到 `prompts/system_prompt.md`
+**状态**：✅ 已完成实现  
+**相关代码**：`src/utils/prompt_loader.py`、`src/core/agent.py`（`_build_system_prompt` 方法）

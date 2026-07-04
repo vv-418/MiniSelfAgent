@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional
 
 import config
 from src.utils.logger import logger
+from src.utils.prompt_loader import load_prompt
 
 
 class ContextManager:
